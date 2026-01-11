@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useCourses } from "../../../hooks/useApi";
+import { apiRequest } from "../../../lib/api";
 import {
   Card,
   CardContent,
@@ -14,16 +14,41 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BookOpen, Search, Play, Loader2 } from "lucide-react";
 
-export default function StudentCourses() {
-  const [searchQuery, setSearchQuery] = useState("");
-  const { data: courses = [], isLoading, error } = useCourses();
-  const navigate = useNavigate();
+interface StudentCourse {
+  id: string;
+  title: string;
+  instructor: string;
+  progress: number;
+}
 
-  const filteredCourses = courses.filter((course: any) =>
+export default function StudentCourses() {
+  const navigate = useNavigate();
+  const [courses, setCourses] = useState<StudentCourse[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchCourses();
+  }, []);
+
+  const fetchCourses = async () => {
+    try {
+      const data = await apiRequest("/student/courses");
+      setCourses(data.courses || []);
+    } catch (err) {
+      console.error("Failed to load student courses", err);
+      setError("Failed to load courses");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredCourses = courses.filter((course) =>
     course.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  if (isLoading) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
@@ -32,11 +57,7 @@ export default function StudentCourses() {
   }
 
   if (error) {
-    return (
-      <div className="text-center py-12">
-        <p className="text-red-600">Failed to load courses</p>
-      </div>
-    );
+    return <div className="text-center py-12 text-red-600">{error}</div>;
   }
 
   return (
@@ -44,7 +65,7 @@ export default function StudentCourses() {
       <div>
         <h1 className="text-3xl font-bold text-gray-900">My Courses</h1>
         <p className="text-gray-600 mt-2">
-          Continue learning from where you left off
+          Courses you are currently enrolled in
         </p>
       </div>
 
@@ -65,13 +86,13 @@ export default function StudentCourses() {
           <CardContent className="pt-6">
             <div className="text-center py-12">
               <BookOpen className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-600">No courses found</p>
+              <p className="text-gray-600">No enrolled courses</p>
             </div>
           </CardContent>
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredCourses.map((course: any) => (
+          {filteredCourses.map((course) => (
             <Card key={course.id} className="hover:shadow-lg transition-shadow">
               <CardHeader>
                 <CardTitle className="text-lg">{course.title}</CardTitle>
@@ -81,12 +102,12 @@ export default function StudentCourses() {
                 <div>
                   <div className="flex justify-between text-sm mb-2">
                     <span className="text-gray-600">Progress</span>
-                    <span className="font-medium">{course.progress || 0}%</span>
+                    <span className="font-medium">{course.progress}%</span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div
-                      className="bg-blue-600 h-2 rounded-full transition-all"
-                      style={{ width: `${course.progress || 0}%` }}
+                      className="bg-blue-600 h-2 rounded-full"
+                      style={{ width: `${course.progress}%` }}
                     />
                   </div>
                 </div>

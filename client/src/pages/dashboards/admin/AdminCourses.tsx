@@ -1,144 +1,147 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { apiRequest } from "../../../lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Search, Trash2, Eye } from "lucide-react";
+import { Search, Trash2, Eye, Loader2 } from "lucide-react";
 
 interface Course {
   id: string;
   title: string;
-  instructor: string;
+  teacherName: string;
   students: number;
   status: "published" | "draft";
-  createdDate: string;
+  createdAt: string;
 }
 
 export default function AdminCourses() {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [courses, setCourses] = useState<Course[]>([
-    {
-      id: "1",
-      title: "Introduction to Commerce",
-      instructor: "Dr. Gupta",
-      students: 12,
-      status: "published",
-      createdDate: "2024-09-15",
-    },
-    {
-      id: "2",
-      title: "Business Economics",
-      instructor: "Prof. Sharma",
-      students: 12,
-      status: "published",
-      createdDate: "2024-09-20",
-    },
-    {
-      id: "3",
-      title: "Advanced Accounting",
-      instructor: "Dr. Verma",
-      students: 0,
-      status: "draft",
-      createdDate: "2024-11-01",
-    },
-  ]);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchCourses();
+  }, []);
+
+  const fetchCourses = async () => {
+    try {
+      const data = await apiRequest("/admin/courses");
+      setCourses(data.courses || []);
+    } catch (err) {
+      console.error("Failed to fetch courses", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (courseId: string) => {
+    if (!confirm("Are you sure you want to delete this course?")) return;
+
+    setActionLoading(courseId);
+    try {
+      await apiRequest(`/admin/courses/${courseId}`, {
+        method: "DELETE",
+      });
+      setCourses((prev) => prev.filter((c) => c.id !== courseId));
+    } catch (err) {
+      console.error("Delete failed", err);
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   const filteredCourses = courses.filter((course) =>
-    course.title.toLowerCase().includes(searchQuery.toLowerCase())
+    course.title.toLowerCase().includes(search.toLowerCase())
   );
 
-  const handleDelete = (id: string) => {
-    setCourses(courses.filter((course) => course.id !== id));
-  };
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Manage Courses</h1>
-        <p className="text-gray-600 mt-2">
+        <h1 className="text-3xl font-bold">Manage Courses</h1>
+        <p className="text-gray-600 mt-1">
           View and manage all courses on the platform
         </p>
       </div>
 
-      <div className="flex gap-2">
-        <div className="flex-1 relative">
-          <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
-          <Input
-            placeholder="Search courses..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
-        </div>
+      <div className="relative">
+        <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+        <Input
+          className="pl-10"
+          placeholder="Search courses..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
       </div>
 
-      <div className="space-y-3">
-        {filteredCourses.length === 0 ? (
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-center py-12">
-                <p className="text-gray-600">No courses found</p>
+      {filteredCourses.length === 0 ? (
+        <Card>
+          <CardContent className="py-10 text-center text-gray-500">
+            No courses found
+          </CardContent>
+        </Card>
+      ) : (
+        filteredCourses.map((course) => (
+          <Card key={course.id}>
+            <CardContent className="pt-6 flex justify-between items-center">
+              <div>
+                <h3 className="font-semibold">{course.title}</h3>
+                <p className="text-sm text-gray-600">
+                  Instructor: {course.teacherName}
+                </p>
+                <div className="flex gap-2 mt-2">
+                  <Badge
+                    variant={
+                      course.status === "published" ? "default" : "secondary"
+                    }
+                  >
+                    {course.status}
+                  </Badge>
+                  <span className="text-xs text-gray-500">
+                    {course.students} students
+                  </span>
+                  <span className="text-xs text-gray-500">
+                    Created {new Date(course.createdAt).toLocaleDateString()}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" className="bg-transparent">
+                  <Eye className="w-4 h-4" />
+                  View
+                </Button>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-red-600 bg-transparent"
+                  disabled={actionLoading === course.id}
+                  onClick={() => handleDelete(course.id)}
+                >
+                  {actionLoading === course.id ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-4 h-4" />
+                  )}
+                  Delete
+                </Button>
               </div>
             </CardContent>
           </Card>
-        ) : (
-          filteredCourses.map((course) => (
-            <Card key={course.id}>
-              <CardContent className="pt-6">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-lg text-gray-900">
-                      {course.title}
-                    </h3>
-                    <p className="text-sm text-gray-600 mt-1">
-                      Instructor: {course.instructor}
-                    </p>
-                    <div className="flex items-center gap-3 mt-2">
-                      <Badge
-                        variant={
-                          course.status === "published"
-                            ? "default"
-                            : "secondary"
-                        }
-                      >
-                        {course.status === "published" ? "Published" : "Draft"}
-                      </Badge>
-                      <span className="text-xs text-gray-600">
-                        {course.students} students enrolled
-                      </span>
-                      <span className="text-xs text-gray-600">
-                        Created:{" "}
-                        {new Date(course.createdDate).toLocaleDateString()}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-2 bg-transparent"
-                    >
-                      <Eye className="w-4 h-4" />
-                      View
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-2 text-red-600 hover:text-red-700 bg-transparent"
-                      onClick={() => handleDelete(course.id)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      Delete
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))
-        )}
-      </div>
+        ))
+      )}
     </div>
   );
 }

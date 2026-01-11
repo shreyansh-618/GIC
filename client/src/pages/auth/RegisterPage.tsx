@@ -95,7 +95,7 @@ export default function RegisterPage() {
     try {
       await register(email, password, "teacher", { fullName, teacherId });
       setSuccess(
-        "Registration submitted! Awaiting admin approval. You will receive an access code via email."
+        "Registration successful. Your account is pending admin approval."
       );
       setTimeout(() => navigate("/login"), 2000);
     } catch (err) {
@@ -190,6 +190,21 @@ export default function RegisterPage() {
                     placeholder="you@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    required
+                    disabled={loading}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="fullName" className="text-sm font-medium">
+                    Full Name
+                  </label>
+                  <Input
+                    id="fullName"
+                    type="text"
+                    placeholder="John Doe"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
                     required
                     disabled={loading}
                   />

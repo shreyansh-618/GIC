@@ -16,7 +16,6 @@ import courseRoutes from "./routes/course.routes";
 import assignmentRoutes from "./routes/assignment.routes";
 import adminRoutes from "./routes/admin.routes";
 
-// IMPORTANT: type the root app
 const app = new Hono<{ Variables: Variables }>();
 
 app.use("*", cors());
@@ -29,13 +28,13 @@ app.get("/", (c) => {
   });
 });
 
-// Route mounting (NO parentheses)
-app.route("/auth", authRoutes);
-app.route("/users", userRoutes);
-app.route("/teachers", teacherRoutes);
-app.route("/courses", courseRoutes);
-app.route("/assignments", assignmentRoutes);
-app.route("/admin", adminRoutes);
+// ✅ API PREFIX (THIS FIXES EVERYTHING)
+app.route("/api/auth", authRoutes);
+app.route("/api/users", userRoutes);
+app.route("/api/teachers", teacherRoutes);
+app.route("/api/courses", courseRoutes);
+app.route("/api/assignments", assignmentRoutes);
+app.route("/api/admin", adminRoutes);
 
 app.onError((err, c) => {
   console.error("Unhandled error:", err);

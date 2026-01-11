@@ -31,7 +31,8 @@ export default function LoginPage() {
 
     try {
       await login(email, password);
-      navigate("/student");
+      const user = JSON.parse(localStorage.getItem("user")!);
+      navigate(user.role === "teacher" ? "/teacher" : "/student");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
     } finally {

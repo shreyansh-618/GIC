@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { API_BASE_URL } from "../utils/constants";
 
 interface UseFetchOptions {
   method?: "GET" | "POST" | "PUT" | "DELETE";
   headers?: Record<string, string>;
   body?: unknown;
+  enabled?: boolean;
 }
 
 interface UseFetchState<T> {
@@ -17,43 +18,60 @@ interface UseFetchState<T> {
 
 export function useFetch<T>(
   url: string,
-  options?: UseFetchOptions
+  options: UseFetchOptions = {}
 ): UseFetchState<T> {
+  const { method = "GET", headers, body, enabled = true } = options;
+
   const [state, setState] = useState<UseFetchState<T>>({
     data: null,
-    loading: true,
+    loading: enabled,
     error: null,
   });
 
   useEffect(() => {
+    if (!enabled) return;
+
+    const controller = new AbortController();
+    const token = localStorage.getItem("token");
+
     const fetchData = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}${url}`, {
-          method: options?.method || "GET",
+        setState((s) => ({ ...s, loading: true }));
+
+        const res = await fetch(`${API_BASE_URL}${url}`, {
+          method,
           headers: {
             "Content-Type": "application/json",
-            ...options?.headers,
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            ...headers,
           },
-          body: options?.body ? JSON.stringify(options.body) : undefined,
+          body: body ? JSON.stringify(body) : undefined,
+          signal: controller.signal,
         });
 
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+        const text = await res.text();
+        const data = text ? JSON.parse(text) : {};
+
+        if (!res.ok) {
+          throw new Error(data.message || data.error || "Request failed");
         }
 
-        const data = await response.json();
         setState({ data, loading: false, error: null });
-      } catch (error) {
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+
         setState({
           data: null,
           loading: false,
-          error: error instanceof Error ? error.message : "An error occurred",
+          error: err instanceof Error ? err.message : "An error occurred",
         });
       }
     };
 
     fetchData();
-  }, [url, options]);
+
+    return () => controller.abort();
+  }, [url, method, enabled]); // ✅ stable deps
 
   return state;
 }

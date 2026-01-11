@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { apiRequest } from "../../../lib/api";
 import {
   Card,
   CardContent,
@@ -8,25 +10,48 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Award, Download } from "lucide-react";
-import { useState } from "react";
+import { Award, Download, Loader2 } from "lucide-react";
 
 interface Certificate {
   id: string;
   courseName: string;
   issuedDate: string;
   certificateNumber: string;
+  downloadUrl: string;
 }
 
 export default function StudentCertificates() {
-  const [certificates] = useState<Certificate[]>([
-    {
-      id: "1",
-      courseName: "Introduction to Commerce",
-      issuedDate: "2024-10-15",
-      certificateNumber: "CERT-2024-001",
-    },
-  ]);
+  const [certificates, setCertificates] = useState<Certificate[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchCertificates();
+  }, []);
+
+  const fetchCertificates = async () => {
+    try {
+      const data = await apiRequest("/student/certificates");
+      setCertificates(data.certificates || []);
+    } catch (err) {
+      console.error("Failed to fetch certificates", err);
+      setError("Failed to load certificates");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return <div className="text-center py-12 text-red-600">{error}</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -72,7 +97,10 @@ export default function StudentCertificates() {
                     {new Date(cert.issuedDate).toLocaleDateString()}
                   </p>
                 </div>
-                <Button className="w-full gap-2">
+                <Button
+                  className="w-full gap-2"
+                  onClick={() => window.open(cert.downloadUrl, "_blank")}
+                >
                   <Download className="w-4 h-4" />
                   Download Certificate
                 </Button>

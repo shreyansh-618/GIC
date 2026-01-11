@@ -8,21 +8,30 @@ export function useEnrollCourse() {
 
   return useMutation({
     mutationFn: async (courseId: string) => {
-      const response = await fetch(`${API_BASE_URL}/enrollments`, {
+      const token = localStorage.getItem("token");
+
+      const res = await fetch(`${API_BASE_URL}/courses/${courseId}/enroll`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ courseId }),
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
       });
 
-      if (!response.ok) {
-        throw new Error("Failed to enroll in course");
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : {};
+
+      if (!res.ok) {
+        throw new Error(data.message || "Failed to enroll in course");
       }
 
-      return response.json();
+      return data;
     },
+
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["courses"] });
       queryClient.invalidateQueries({ queryKey: ["enrollments"] });
+      queryClient.invalidateQueries({ queryKey: ["student-courses"] });
     },
   });
 }

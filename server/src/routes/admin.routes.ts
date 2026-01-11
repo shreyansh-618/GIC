@@ -5,6 +5,7 @@ import { AccessCode } from "../models/AccessCode";
 import { authMiddleware } from "../middleware/auth.middleware";
 import { requireRole } from "../middleware/role.middleware";
 import { isValidObjectId } from "../utils/validation";
+import { sendAccessCodeEmail } from "../utils/sendAccessCode";
 
 const adminRoutes = new Hono<{ Variables: Variables }>();
 adminRoutes.use("*", authMiddleware);
@@ -27,6 +28,9 @@ adminRoutes.post("/approve-teacher/:teacherId", async (c) => {
     expiresAt: new Date(Date.now() + 86400000),
     createdBy: c.get("user").id,
   }).save();
+
+  //email delivery
+  await sendAccessCodeEmail(teacher.email, code);
 
   return c.json({ message: "Access code generated", code });
 });

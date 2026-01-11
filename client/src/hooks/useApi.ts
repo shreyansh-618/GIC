@@ -2,8 +2,13 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:3001/api";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
+if (!API_BASE_URL) {
+  throw new Error(
+    "VITE_API_BASE_URL is not defined. Check your frontend .env file."
+  );
+}
 
 interface ApiOptions {
   method?: "GET" | "POST" | "PUT" | "DELETE";
@@ -14,23 +19,30 @@ interface ApiOptions {
 async function apiCall(endpoint: string, options: ApiOptions = {}) {
   const { method = "GET", body, headers = {} } = options;
 
+  const token = localStorage.getItem("token");
+
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     method,
     headers: {
       "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...headers,
     },
     body: body ? JSON.stringify(body) : undefined,
   });
 
+  const text = await response.text();
+  const data = text ? JSON.parse(text) : {};
+
   if (!response.ok) {
-    throw new Error(`API Error: ${response.statusText}`);
+    throw new Error(data.error || data.message || "API request failed");
   }
 
-  return response.json();
+  return data;
 }
 
-// Courses API
+/* ===================== COURSES ===================== */
+
 export function useCourses() {
   return useQuery({
     queryKey: ["courses"],
@@ -57,7 +69,8 @@ export function useCreateCourse() {
   });
 }
 
-// Users API
+/* ===================== USERS ===================== */
+
 export function useUsers() {
   return useQuery({
     queryKey: ["users"],
@@ -73,7 +86,8 @@ export function useUser(userId: string) {
   });
 }
 
-// Assignments API
+/* ===================== ASSIGNMENTS ===================== */
+
 export function useAssignments() {
   return useQuery({
     queryKey: ["assignments"],
@@ -92,40 +106,37 @@ export function useSubmitAssignment() {
   });
 }
 
-// Access Requests API
-export function useAccessRequests() {
+/* ===================== ADMIN / TEACHER ===================== */
+
+export function usePendingTeachers() {
   return useQuery({
-    queryKey: ["accessRequests"],
-    queryFn: () => apiCall("/access-requests"),
+    queryKey: ["pending-teachers"],
+    queryFn: () => apiCall("/admin/pending-teachers"),
   });
 }
 
-export function useApproveRequest() {
+export function useApproveTeacher() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (requestId: string) =>
-      apiCall(`/access-requests/${requestId}/approve`, { method: "PUT" }),
+    mutationFn: (teacherId: string) =>
+      apiCall(`/admin/approve-teacher/${teacherId}`, {
+        method: "POST",
+      }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["accessRequests"] });
+      queryClient.invalidateQueries({ queryKey: ["pending-teachers"] });
     },
   });
 }
 
-export function useRejectRequest() {
+export function useRejectTeacher() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (requestId: string) =>
-      apiCall(`/access-requests/${requestId}/reject`, { method: "PUT" }),
+    mutationFn: (teacherId: string) =>
+      apiCall(`/admin/reject-teacher/${teacherId}`, {
+        method: "POST",
+      }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["accessRequests"] });
+      queryClient.invalidateQueries({ queryKey: ["pending-teachers"] });
     },
-  });
-}
-
-// Certificates API
-export function useCertificates() {
-  return useQuery({
-    queryKey: ["certificates"],
-    queryFn: () => apiCall("/certificates"),
   });
 }

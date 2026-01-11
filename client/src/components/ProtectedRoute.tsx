@@ -1,6 +1,4 @@
-"use client";
-
-import type React from "react";
+import React from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth, type UserRole } from "../context/AuthContext";
 import { Loader2 } from "lucide-react";
@@ -19,16 +17,14 @@ export function ProtectedRoute({
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+        <Loader2 className="w-8 h-8 animate-spin" />
       </div>
     );
   }
 
-  if (!user) {
-    return <Navigate to="/login" replace />;
-  }
+  if (!user) return <Navigate to="/login" replace />;
 
-  if (requiredRole === "teacher" && user.verificationStatus !== "verified") {
+  if (requiredRole === "teacher" && !user.isVerified) {
     return <Navigate to="/teacher-verify" replace />;
   }
 

@@ -1,27 +1,36 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+type SetValue<T> = T | ((prev: T) => T);
 
 export function useLocalStorage<T>(
   key: string,
   initialValue: T
-): [T, (value: T) => void] {
-  const [storedValue, setStoredValue] = useState<T>(() => {
-    try {
-      const item = window.localStorage.getItem(key);
-      return item ? JSON.parse(item) : initialValue;
-    } catch (error) {
-      console.error(`Error reading from localStorage for key "${key}":`, error);
-      return initialValue;
-    }
-  });
+): [T, (value: SetValue<T>) => void] {
+  const [storedValue, setStoredValue] = useState<T>(initialValue);
 
-  const setValue = (value: T) => {
+  // Read from localStorage after mount (browser-safe)
+  useEffect(() => {
     try {
-      setStoredValue(value);
-      window.localStorage.setItem(key, JSON.stringify(value));
+      const item = localStorage.getItem(key);
+      if (item !== null) {
+        setStoredValue(JSON.parse(item));
+      }
     } catch (error) {
-      console.error(`Error writing to localStorage for key "${key}":`, error);
+      console.error(`Error reading localStorage key "${key}"`, error);
+    }
+  }, [key]);
+
+  const setValue = (value: SetValue<T>) => {
+    try {
+      const valueToStore =
+        value instanceof Function ? value(storedValue) : value;
+
+      setStoredValue(valueToStore);
+      localStorage.setItem(key, JSON.stringify(valueToStore));
+    } catch (error) {
+      console.error(`Error setting localStorage key "${key}"`, error);
     }
   };
 

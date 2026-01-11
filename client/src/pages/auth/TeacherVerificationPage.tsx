@@ -1,7 +1,6 @@
 "use client";
 
-import type React from "react";
-import { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -21,13 +20,28 @@ export default function TeacherVerificationPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
   const { user, verifyTeacherCode } = useAuth();
   const navigate = useNavigate();
 
-  if (!user || user.role !== "teacher") {
-    navigate("/login");
-    return null;
-  }
+  /**
+   * Redirect logic must live in useEffect (NOT during render)
+   */
+  useEffect(() => {
+    if (!user) {
+      navigate("/login", { replace: true });
+      return;
+    }
+
+    if (user.role !== "teacher") {
+      navigate("/login", { replace: true });
+      return;
+    }
+
+    if (user.isVerified) {
+      navigate("/teacher", { replace: true });
+    }
+  }, [user, navigate]);
 
   const handleVerification = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,7 +55,7 @@ export default function TeacherVerificationPage() {
     setLoading(true);
     try {
       await verifyTeacherCode(accessCode);
-      setSuccess("Access code verified! Redirecting to teacher dashboard...");
+      setSuccess("Access code verified successfully!");
       setTimeout(() => navigate("/teacher"), 1500);
     } catch (err) {
       setError(
@@ -54,15 +68,20 @@ export default function TeacherVerificationPage() {
     }
   };
 
+  if (!user || user.role !== "teacher" || user.isVerified) {
+    return null;
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 p-4">
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader className="space-y-2">
           <CardTitle className="text-2xl">Verify Your Access</CardTitle>
           <CardDescription>
-            Enter the access code sent to your email
+            Enter the access code provided by the admin
           </CardDescription>
         </CardHeader>
+
         <CardContent>
           <form onSubmit={handleVerification} className="space-y-4">
             {error && (
@@ -83,12 +102,11 @@ export default function TeacherVerificationPage() {
 
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-2">
               <p className="text-sm font-medium text-blue-900">
-                Welcome, {user.email}!
+                Logged in as {user.email}
               </p>
               <p className="text-sm text-blue-800">
-                Your teacher account has been created and is pending admin
-                approval. Once approved, you'll receive an access code via
-                email.
+                Your teacher account is pending approval. Once approved, you
+                will receive an access code from the admin.
               </p>
             </div>
 
@@ -99,17 +117,13 @@ export default function TeacherVerificationPage() {
               <Input
                 id="accessCode"
                 type="text"
-                placeholder="Enter your 6-digit code"
+                placeholder="Enter your access code"
                 value={accessCode}
-                onChange={(e) => setAccessCode(e.target.value.toUpperCase())}
-                maxLength={20}
+                onChange={(e) => setAccessCode(e.target.value.trim())}
                 required
                 disabled={loading}
                 className="text-center text-lg tracking-widest"
               />
-              <p className="text-xs text-gray-500">
-                Check your email for the access code from the admin
-              </p>
             </div>
 
             <Button type="submit" className="w-full" disabled={loading}>

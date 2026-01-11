@@ -1,9 +1,9 @@
 "use client";
 
 import type React from "react";
-
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { apiRequest } from "../../../lib/api";
 import {
   Card,
   CardContent,
@@ -18,14 +18,15 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, ArrowLeft } from "lucide-react";
 
 export default function CreateCourse() {
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const [formData, setFormData] = useState({
     title: "",
     description: "",
     videoUrl: "",
   });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const navigate = useNavigate();
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -45,11 +46,14 @@ export default function CreateCourse() {
 
     setLoading(true);
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await apiRequest("/teacher/courses", {
+        method: "POST",
+        body: JSON.stringify(formData),
+      });
+
       navigate("/teacher/courses");
     } catch (err) {
-      setError("Failed to create course");
+      setError(err instanceof Error ? err.message : "Failed to create course");
     } finally {
       setLoading(false);
     }
@@ -73,9 +77,10 @@ export default function CreateCourse() {
         <CardHeader>
           <CardTitle>Create New Course</CardTitle>
           <CardDescription>
-            Add a YouTube video and course details
+            Add course details and a YouTube video
           </CardDescription>
         </CardHeader>
+
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
@@ -91,11 +96,11 @@ export default function CreateCourse() {
               <Input
                 id="title"
                 name="title"
-                placeholder="e.g., Introduction to Commerce"
                 value={formData.title}
                 onChange={handleChange}
-                required
                 disabled={loading}
+                placeholder="Introduction to Commerce"
+                required
               />
             </div>
 
@@ -106,12 +111,12 @@ export default function CreateCourse() {
               <Textarea
                 id="description"
                 name="description"
-                placeholder="Describe what students will learn..."
+                rows={4}
                 value={formData.description}
                 onChange={handleChange}
-                required
                 disabled={loading}
-                rows={4}
+                placeholder="Describe what students will learn"
+                required
               />
             </div>
 
@@ -123,15 +128,12 @@ export default function CreateCourse() {
                 id="videoUrl"
                 name="videoUrl"
                 type="url"
-                placeholder="https://youtube.com/watch?v=..."
                 value={formData.videoUrl}
                 onChange={handleChange}
-                required
                 disabled={loading}
+                placeholder="https://youtube.com/watch?v=..."
+                required
               />
-              <p className="text-xs text-gray-600">
-                Paste the full YouTube URL of your course video
-              </p>
             </div>
 
             <div className="flex gap-2 pt-4">
@@ -145,11 +147,12 @@ export default function CreateCourse() {
                   "Create Course"
                 )}
               </Button>
+
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => navigate("/teacher/courses")}
                 disabled={loading}
+                onClick={() => navigate("/teacher/courses")}
               >
                 Cancel
               </Button>

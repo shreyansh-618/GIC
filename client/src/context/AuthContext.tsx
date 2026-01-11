@@ -1,37 +1,32 @@
-"use client";
-
-import type React from "react";
-import { createContext, useContext, useEffect, useState } from "react";
-import {
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  signOut,
-  onAuthStateChanged,
-  type User,
-} from "firebase/auth";
-import { auth } from "../config/firebase";
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { apiRequest } from "../lib/api";
 
 export type UserRole = "student" | "teacher" | "admin";
 
-interface AuthUser extends User {
-  role?: UserRole;
-  verificationStatus?: "pending" | "verified" | "rejected";
+export interface AuthUser {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  status: "active" | "pending" | "inactive";
+  isVerified: boolean;
 }
 
 interface AuthContextType {
   user: AuthUser | null;
   loading: boolean;
-  error: string | null;
   login: (email: string, password: string) => Promise<void>;
   register: (
     email: string,
     password: string,
     role: UserRole,
-    additionalData?: Record<string, any>
+    extra?: {
+      fullName?: string;
+      teacherId?: string;
+    }
   ) => Promise<void>;
-  logout: () => Promise<void>;
-  setUserRole: (role: UserRole) => void;
   verifyTeacherCode: (code: string) => Promise<void>;
+  logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -39,130 +34,92 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  // Listen for auth state changes
+  /**
+   * Restore auth state from localStorage on app load
+   */
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        // Fetch user role and verification status from backend
-        try {
-          const response = await fetch(`/api/users/${firebaseUser.uid}`);
-          const userData = await response.json();
-          setUser({
-            ...firebaseUser,
-            role: userData.role || "student",
-            verificationStatus: userData.verificationStatus || "verified",
-          });
-        } catch (err) {
-          // Default to student if API fails
-          setUser({
-            ...firebaseUser,
-            role: "student",
-            verificationStatus: "verified",
-          });
-        }
-      } else {
-        setUser(null);
-      }
-      setLoading(false);
-    });
+    try {
+      const token = localStorage.getItem("token");
+      const storedUser = localStorage.getItem("user");
 
-    return unsubscribe;
+      if (token && storedUser) {
+        setUser(JSON.parse(storedUser));
+      } else {
+        localStorage.clear();
+      }
+    } catch {
+      localStorage.clear();
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
+  /**
+   * Login
+   */
   const login = async (email: string, password: string) => {
-    try {
-      setError(null);
-      await signInWithEmailAndPassword(auth, email, password);
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Login failed";
-      setError(errorMessage);
-      throw err;
+    const data = await apiRequest("/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    });
+
+    if (!data?.token || !data?.user) {
+      throw new Error("Invalid login response");
     }
+
+    localStorage.setItem("token", data.token);
+    localStorage.setItem("user", JSON.stringify(data.user));
+    setUser(data.user);
   };
 
+  /**
+   * Register
+   */
   const register = async (
     email: string,
     password: string,
-    role: UserRole = "student",
-    additionalData?: Record<string, any>
+    role: UserRole,
+    extra?: {
+      fullName?: string;
+      teacherId?: string;
+    }
   ) => {
-    try {
-      setError(null);
-      const result = await createUserWithEmailAndPassword(
-        auth,
+    await apiRequest("/auth/register", {
+      method: "POST",
+      body: JSON.stringify({
         email,
-        password
-      );
-      await fetch("/api/users", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          uid: result.user.uid,
-          email: result.user.email,
-          role: role,
-          verificationStatus: role === "teacher" ? "pending" : "verified",
-          ...additionalData,
-        }),
-      });
-    } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Registration failed";
-      setError(errorMessage);
-      throw err;
-    }
+        password,
+        role,
+        name: extra?.fullName,
+        teacherId: extra?.teacherId,
+      }),
+    });
   };
 
+  /**
+   * Teacher verification (access code)
+   */
   const verifyTeacherCode = async (code: string) => {
-    try {
-      setError(null);
-      if (!user) throw new Error("User not found");
+    const data = await apiRequest("/teachers/verify-code", {
+      method: "POST",
+      body: JSON.stringify({ code }),
+    });
 
-      const response = await fetch("/api/teachers/verify-code", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          uid: user.uid,
-          email: user.email,
-          code: code,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Invalid access code");
-      }
-
-      // Update user verification status
-      setUser({
-        ...user,
-        verificationStatus: "verified",
-      });
-    } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Verification failed";
-      setError(errorMessage);
-      throw err;
+    if (!data?.user) {
+      throw new Error("Verification failed");
     }
+
+    localStorage.setItem("user", JSON.stringify(data.user));
+    setUser(data.user);
   };
 
-  const logout = async () => {
-    try {
-      setError(null);
-      await signOut(auth);
-      setUser(null);
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Logout failed";
-      setError(errorMessage);
-      throw err;
-    }
-  };
-
-  const setUserRole = (role: UserRole) => {
-    if (user) {
-      setUser({ ...user, role });
-    }
+  /**
+   * Logout
+   */
+  const logout = () => {
+    localStorage.clear();
+    setUser(null);
   };
 
   return (
@@ -170,12 +127,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       value={{
         user,
         loading,
-        error,
         login,
         register,
-        logout,
-        setUserRole,
         verifyTeacherCode,
+        logout,
       }}
     >
       {children}
@@ -184,9 +139,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 }
 
 export function useAuth() {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error("useAuth must be used within AuthProvider");
+  const ctx = useContext(AuthContext);
+  if (!ctx) {
+    throw new Error("useAuth must be used inside AuthProvider");
   }
-  return context;
+  return ctx;
 }

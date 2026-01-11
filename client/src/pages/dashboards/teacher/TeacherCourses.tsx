@@ -1,53 +1,82 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { apiRequest } from "../../../lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { BookOpen, Search, Edit, Trash2, Plus, Users } from "lucide-react";
+import {
+  BookOpen,
+  Search,
+  Edit,
+  Trash2,
+  Plus,
+  Users,
+  Loader2,
+} from "lucide-react";
 
 interface Course {
   id: string;
   title: string;
   description: string;
-  videoUrl: string;
   students: number;
-  createdDate: string;
+  createdAt: string;
 }
 
 export default function TeacherCourses() {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [courses, setCourses] = useState<Course[]>([
-    {
-      id: "1",
-      title: "Introduction to Commerce",
-      description: "Learn the fundamentals of commerce and business",
-      videoUrl: "https://youtube.com/watch?v=example1",
-      students: 12,
-      createdDate: "2024-09-15",
-    },
-    {
-      id: "2",
-      title: "Business Economics",
-      description: "Understand economic principles in business",
-      videoUrl: "https://youtube.com/watch?v=example2",
-      students: 12,
-      createdDate: "2024-09-20",
-    },
-  ]);
   const navigate = useNavigate();
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchCourses();
+  }, []);
+
+  const fetchCourses = async () => {
+    try {
+      const data = await apiRequest("/teacher/courses");
+      setCourses(data.courses || []);
+    } catch (err) {
+      console.error("Failed to fetch courses", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (courseId: string) => {
+    if (!confirm("Are you sure you want to delete this course?")) return;
+
+    setActionLoading(courseId);
+    try {
+      await apiRequest(`/teacher/courses/${courseId}`, {
+        method: "DELETE",
+      });
+      setCourses((prev) => prev.filter((c) => c.id !== courseId));
+    } catch (err) {
+      console.error("Delete failed", err);
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   const filteredCourses = courses.filter((course) =>
     course.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleDelete = (id: string) => {
-    setCourses(courses.filter((course) => course.id !== id));
-  };
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">My Courses</h1>
@@ -62,6 +91,7 @@ export default function TeacherCourses() {
         </Button>
       </div>
 
+      {/* Search */}
       <div className="flex gap-2">
         <div className="flex-1 relative">
           <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
@@ -74,6 +104,7 @@ export default function TeacherCourses() {
         </div>
       </div>
 
+      {/* Courses */}
       {filteredCourses.length === 0 ? (
         <Card>
           <CardContent className="pt-6">
@@ -102,27 +133,37 @@ export default function TeacherCourses() {
                         {course.students} students
                       </div>
                       <div>
-                        Created:{" "}
-                        {new Date(course.createdDate).toLocaleDateString()}
+                        Created{" "}
+                        {new Date(course.createdAt).toLocaleDateString()}
                       </div>
                     </div>
                   </div>
+
                   <div className="flex gap-2">
                     <Button
                       variant="outline"
                       size="sm"
                       className="gap-2 bg-transparent"
+                      onClick={() =>
+                        navigate(`/teacher/courses/edit/${course.id}`)
+                      }
                     >
                       <Edit className="w-4 h-4" />
                       Edit
                     </Button>
+
                     <Button
                       variant="outline"
                       size="sm"
-                      className="gap-2 text-red-600 hover:text-red-700 bg-transparent"
+                      className="gap-2 text-red-600 bg-transparent"
+                      disabled={actionLoading === course.id}
                       onClick={() => handleDelete(course.id)}
                     >
-                      <Trash2 className="w-4 h-4" />
+                      {actionLoading === course.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-4 h-4" />
+                      )}
                       Delete
                     </Button>
                   </div>

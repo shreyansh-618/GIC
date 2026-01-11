@@ -1,158 +1,116 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { apiRequest } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Search, Trash2, Edit } from "lucide-react";
+import { Search, Loader2 } from "lucide-react";
 
 interface User {
   id: string;
-  email: string;
   name: string;
+  email: string;
   role: "student" | "teacher" | "admin";
-  joinDate: string;
-  status: "active" | "inactive";
+  isVerified: boolean;
+  createdAt: string;
 }
 
 export default function AdminUsers() {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [users, setUsers] = useState<User[]>([
-    {
-      id: "1",
-      email: "raj@example.com",
-      name: "Raj Kumar",
-      role: "student",
-      joinDate: "2024-09-01",
-      status: "active",
-    },
-    {
-      id: "2",
-      email: "priya@example.com",
-      name: "Priya Singh",
-      role: "teacher",
-      joinDate: "2024-08-15",
-      status: "active",
-    },
-    {
-      id: "3",
-      email: "amit@example.com",
-      name: "Amit Patel",
-      role: "student",
-      joinDate: "2024-10-01",
-      status: "active",
-    },
-    {
-      id: "4",
-      email: "admin@example.com",
-      name: "Admin User",
-      role: "admin",
-      joinDate: "2024-01-01",
-      status: "active",
-    },
-  ]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const filteredUsers = users.filter(
-    (user) =>
-      user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  useEffect(() => {
+    fetchUsers();
+  }, []);
 
-  const handleDelete = (id: string) => {
-    setUsers(users.filter((user) => user.id !== id));
-  };
-
-  const getRoleBadge = (role: string) => {
-    switch (role) {
-      case "admin":
-        return <Badge className="bg-red-600">Admin</Badge>;
-      case "teacher":
-        return <Badge className="bg-blue-600">Teacher</Badge>;
-      case "student":
-        return <Badge variant="secondary">Student</Badge>;
-      default:
-        return null;
+  const fetchUsers = async () => {
+    try {
+      setError(null);
+      const data = await apiRequest("/admin/users");
+      setUsers(data.users || []);
+    } catch (err: any) {
+      setError(err.message || "Failed to load users");
+    } finally {
+      setLoading(false);
     }
   };
+
+  const filteredUsers = users.filter((u) => {
+    const q = search.toLowerCase();
+    return (
+      (u.name || "").toLowerCase().includes(q) ||
+      (u.email || "").toLowerCase().includes(q)
+    );
+  });
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Manage Users</h1>
-        <p className="text-gray-600 mt-2">
-          View and manage all registered users
+        <h1 className="text-3xl font-bold">All Users</h1>
+        <p className="text-gray-600 mt-1">
+          View registered students, teachers, and admins
         </p>
       </div>
 
-      <div className="flex gap-2">
-        <div className="flex-1 relative">
-          <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
-          <Input
-            placeholder="Search by email or name..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
-        </div>
+      <div className="relative">
+        <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+        <Input
+          className="pl-10"
+          placeholder="Search users..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
       </div>
 
-      <div className="space-y-3">
-        {filteredUsers.length === 0 ? (
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-center py-12">
-                <p className="text-gray-600">No users found</p>
+      {error && (
+        <Card>
+          <CardContent className="py-6 text-center text-red-600">
+            {error}
+          </CardContent>
+        </Card>
+      )}
+
+      {filteredUsers.length === 0 ? (
+        <Card>
+          <CardContent className="py-10 text-center text-gray-500">
+            No users found
+          </CardContent>
+        </Card>
+      ) : (
+        filteredUsers.map((u) => (
+          <Card key={u.id}>
+            <CardContent className="pt-6 flex justify-between items-center">
+              <div>
+                <h3 className="font-semibold">{u.name}</h3>
+                <p className="text-sm text-gray-600">{u.email}</p>
+                <div className="flex gap-2 mt-2">
+                  <Badge variant="secondary">{u.role}</Badge>
+                  <Badge
+                    className={u.isVerified ? "bg-green-600" : "bg-orange-500"}
+                  >
+                    {u.isVerified ? "Verified" : "Pending"}
+                  </Badge>
+                </div>
               </div>
+
+              <span className="text-xs text-gray-500">
+                Joined {new Date(u.createdAt).toLocaleDateString()}
+              </span>
             </CardContent>
           </Card>
-        ) : (
-          filteredUsers.map((user) => (
-            <Card key={user.id}>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900">{user.name}</h3>
-                    <p className="text-sm text-gray-600">{user.email}</p>
-                    <div className="flex items-center gap-3 mt-2">
-                      {getRoleBadge(user.role)}
-                      <Badge
-                        variant={
-                          user.status === "active" ? "default" : "secondary"
-                        }
-                      >
-                        {user.status === "active" ? "Active" : "Inactive"}
-                      </Badge>
-                      <span className="text-xs text-gray-600">
-                        Joined: {new Date(user.joinDate).toLocaleDateString()}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-2 bg-transparent"
-                    >
-                      <Edit className="w-4 h-4" />
-                      Edit
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-2 text-red-600 hover:text-red-700 bg-transparent"
-                      onClick={() => handleDelete(user.id)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      Delete
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))
-        )}
-      </div>
+        ))
+      )}
     </div>
   );
 }
