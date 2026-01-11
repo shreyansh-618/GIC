@@ -2,52 +2,48 @@ import { Hono } from "hono";
 import { User } from "../models/User";
 import { hashPassword, comparePassword } from "../utils/password";
 import { generateToken, verifyToken } from "../utils/jwt";
-import { validateEmail, validatePassword } from "../utils/validation";
+import {
+  validateEmail,
+  validatePassword,
+  validateBody,
+} from "../utils/validation";
 
 const authRoutes = new Hono();
 
-// Register User
+// Register
 authRoutes.post("/register", async (c) => {
   try {
-    const { name, email, password, role, teacherId } = await c.req.json();
+    const body = await c.req.json();
 
-    // Validation
-    if (!name || !email || !password || !role) {
-      return c.json({ error: "Missing required fields" }, { status: 400 });
-    }
+    const errors = validateBody(body, {
+      name: { required: true, type: "string", minLength: 2 },
+      email: { required: true, type: "string" },
+      password: { required: true, type: "string" },
+      role: { required: true, type: "string" },
+    });
 
-    if (!validateEmail(email)) {
-      return c.json({ error: "Invalid email format" }, { status: 400 });
-    }
+    if (errors.length) return c.json({ errors }, 400);
+    if (!validateEmail(body.email))
+      return c.json({ error: "Invalid email format" }, 400);
 
-    const passwordValidation = validatePassword(password);
-    if (!passwordValidation.valid) {
-      return c.json({ error: passwordValidation.errors }, { status: 400 });
-    }
+    const pwd = validatePassword(body.password);
+    if (!pwd.valid) return c.json({ error: pwd.errors }, 400);
 
-    // Check if user exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return c.json({ error: "Email already registered" }, { status: 409 });
-    }
+    const exists = await User.findOne({ email: body.email });
+    if (exists) return c.json({ error: "Email already registered" }, 409);
 
-    // Hash password
-    const hashedPassword = await hashPassword(password);
-
-    // Create user
     const user = new User({
-      name,
-      email,
-      password: hashedPassword,
-      role,
-      teacherId,
-      status: role === "teacher" ? "pending" : "active",
-      isVerified: role === "student",
+      name: body.name,
+      email: body.email,
+      password: await hashPassword(body.password),
+      role: body.role,
+      teacherId: body.role === "student" ? body.teacherId : undefined,
+      status: body.role === "teacher" ? "pending" : "active",
+      isVerified: body.role === "student",
     });
 
     await user.save();
 
-    // Generate token
     const token = generateToken(user._id.toString(), user.role);
 
     return c.json(
@@ -63,43 +59,30 @@ authRoutes.post("/register", async (c) => {
         },
         token,
       },
-      { status: 201 }
+      201
     );
-  } catch (error) {
-    console.error("Registration error:", error);
-    return c.json({ error: "Registration failed" }, { status: 500 });
+  } catch (e) {
+    console.error(e);
+    return c.json({ error: "Registration failed" }, 500);
   }
 });
 
-// Login User
+// Login
 authRoutes.post("/login", async (c) => {
   try {
-    const { email, password } = await c.req.json();
+    const body = await c.req.json();
 
-    if (!email || !password) {
-      return c.json({ error: "Email and password required" }, { status: 400 });
-    }
+    if (!body.email || !body.password)
+      return c.json({ error: "Email and password required" }, 400);
 
-    const user = await User.findOne({ email });
-    if (!user) {
-      return c.json({ error: "Invalid credentials" }, { status: 401 });
-    }
+    const user = await User.findOne({ email: body.email });
+    if (!user) return c.json({ error: "Invalid credentials" }, 401);
 
-    const isPasswordValid = await comparePassword(password, user.password);
-    if (!isPasswordValid) {
-      return c.json({ error: "Invalid credentials" }, { status: 401 });
-    }
+    const ok = await comparePassword(body.password, user.password);
+    if (!ok) return c.json({ error: "Invalid credentials" }, 401);
 
-    // Check teacher verification status
     if (user.role === "teacher" && !user.isVerified) {
-      return c.json(
-        {
-          error: "Teacher account pending verification",
-          requiresVerification: true,
-          userId: user._id,
-        },
-        { status: 403 }
-      );
+      return c.json({ error: "Teacher account pending verification" }, 403);
     }
 
     const token = generateToken(user._id.toString(), user.role);
@@ -116,34 +99,22 @@ authRoutes.post("/login", async (c) => {
       },
       token,
     });
-  } catch (error) {
-    console.error("Login error:", error);
-    return c.json({ error: "Login failed" }, { status: 500 });
+  } catch (e) {
+    console.error(e);
+    return c.json({ error: "Login failed" }, 500);
   }
 });
 
 authRoutes.post("/refresh", async (c) => {
   try {
     const { token } = await c.req.json();
-
-    if (!token) {
-      return c.json({ error: "Token required" }, { status: 400 });
-    }
-
     const decoded = verifyToken(token);
-    const newToken = generateToken(decoded.userId, decoded.role);
-
     return c.json({
-      message: "Token refreshed",
-      token: newToken,
+      token: generateToken(decoded.userId, decoded.role),
     });
-  } catch (error) {
-    return c.json({ error: "Invalid token" }, { status: 401 });
+  } catch {
+    return c.json({ error: "Invalid token" }, 401);
   }
-});
-
-authRoutes.post("/logout", async (c) => {
-  return c.json({ message: "Logged out successfully" });
 });
 
 export default authRoutes;

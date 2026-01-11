@@ -54,7 +54,7 @@ export default function LoginPage() {
               <span className="text-white font-bold">G</span>
             </div>
             <h1 className="text-2xl font-bold text-gray-900">
-              Gupta Institute
+              Gupta Institute of Commerce
             </h1>
           </div>
           <CardTitle className="text-2xl">Welcome Back</CardTitle>

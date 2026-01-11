@@ -111,7 +111,9 @@ export default function RegisterPage() {
         {step === "role-selection" && (
           <>
             <CardHeader className="space-y-2">
-              <CardTitle className="text-2xl">Join Gupta Institute</CardTitle>
+              <CardTitle className="text-2xl">
+                Join Gupta Institute of Commerce
+              </CardTitle>
               <CardDescription>Choose your role to get started</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
